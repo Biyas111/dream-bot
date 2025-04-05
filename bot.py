@@ -9,8 +9,17 @@ from langdetect import detect
 openai.api_key = os.getenv("OPENAI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
+# Проверяем, что токен Telegram загружен
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN not found in environment variables. Please set it in Render.")
+
+# Проверяем, что ключ OpenAI загружен
+if not openai.api_key:
+    raise ValueError("OPENAI_API_KEY not found in environment variables. Please set it in Render.")
+
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Промпты для разных языков
 PROMPTS = {
@@ -42,6 +51,7 @@ def interpret_dream(dream: str, lang: str = "en") -> str:
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
+        logger.error(f"Error interpreting dream: {e}")
         return {
             "ru": "Произошла ошибка при толковании.",
             "en": "An error occurred.",
@@ -55,16 +65,19 @@ def handle_message(update: Update, context: CallbackContext):
     user_message = update.message.text
     try:
         lang = detect(user_message)
-    except:
+    except Exception as e:
+        logger.error(f"Error detecting language: {e}")
         lang = "en"
     interpretation = interpret_dream(user_message, lang)
     update.message.reply_text(interpretation)
 
 def main():
+    logger.info("Starting bot...")
     updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    logger.info("Bot started polling.")
     updater.start_polling()
     updater.idle()
 
